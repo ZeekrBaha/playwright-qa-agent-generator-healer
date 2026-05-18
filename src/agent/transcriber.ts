@@ -45,6 +45,7 @@ function emitPOM(opts: TranscribeOptions): void {
 
   fs.mkdirSync(path.join(outDir, 'pages'), { recursive: true });
   fs.mkdirSync(path.join(outDir, 'tests'), { recursive: true });
+  fs.mkdirSync(path.join(outDir, 'fixtures'), { recursive: true });
 
   // BasePage
   fs.writeFileSync(path.join(outDir, 'pages', `BasePage.${ext}`), basePageSource(lang));
@@ -54,9 +55,45 @@ function emitPOM(opts: TranscribeOptions): void {
   const pageFile = path.join(outDir, 'pages', `${className}.${ext}`);
   fs.writeFileSync(pageFile, pageObjectSource(report, className, lang));
 
+  // Fixture that injects the page object into every test
+  const fixtureFile = path.join(outDir, 'fixtures', `pages.${ext}`);
+  fs.writeFileSync(fixtureFile, fixturesSource(className, lang));
+
   // Spec
   const specFile = path.join(outDir, 'tests', `${name}.spec.${ext}`);
   fs.writeFileSync(specFile, specSource(report, className, lang));
+}
+
+function fixturesSource(className: string, lang: 'ts' | 'js'): string {
+  const fieldName = lcFirst(className);
+  if (lang === 'ts') {
+    return `import { test as base, expect } from '@playwright/test';
+import { ${className} } from '../pages/${className}';
+
+type Fixtures = {
+  ${fieldName}: ${className};
+};
+
+export const test = base.extend<Fixtures>({
+  ${fieldName}: async ({ page }, use) => {
+    await use(new ${className}(page));
+  },
+});
+
+export { expect };
+`;
+  }
+  return `import { test as base, expect } from '@playwright/test';
+import { ${className} } from '../pages/${className}.js';
+
+export const test = base.extend({
+  ${fieldName}: async ({ page }, use) => {
+    await use(new ${className}(page));
+  },
+});
+
+export { expect };
+`;
 }
 
 function basePageSource(lang: 'ts' | 'js'): string {
@@ -147,8 +184,8 @@ ${fields.map((f) => `    this.${f.fieldName} = ${f.call};`).join('\n')}
 function specSource(report: RunReport, className: string, lang: 'ts' | 'js'): string {
   const importLine =
     lang === 'ts'
-      ? `import { test, expect } from '@playwright/test';\nimport { ${className} } from '../pages/${className}';`
-      : `import { test, expect } from '@playwright/test';\nimport { ${className} } from '../pages/${className}.js';`;
+      ? `import { test, expect } from '../fixtures/pages';`
+      : `import { test, expect } from '../fixtures/pages.js';`;
   const tests = report.scenarios.map((s) => emitScenarioTest(s, className)).join('\n\n');
   return `${importLine}
 
@@ -161,8 +198,7 @@ ${tests}
 function emitScenarioTest(s: Scenario, className: string): string {
   const lines: string[] = [];
   const varName = lcFirst(className);
-  lines.push(`  test(${JSON.stringify(`[${s.category}] ${s.name}`)}, async ({ page }) => {`);
-  lines.push(`    const ${varName} = new ${className}(page);`);
+  lines.push(`  test(${JSON.stringify(`[${s.category}] ${s.name}`)}, async ({ page, ${varName} }) => {`);
   // Always navigate to the page URL first. The agent may have called navigate()
   // before begin_scenario(), so the trace might not include it — but the page
   // object already knows the URL.

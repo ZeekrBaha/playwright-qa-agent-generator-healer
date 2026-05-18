@@ -197,20 +197,36 @@ export class SaucedemoComPage extends BasePage {
 }
 ```
 
+**`fixtures/pages.ts`** — custom Playwright fixture injects the Page Object
+into every test, so the spec never has to call `new SaucedemoComPage(page)`:
+
+```ts
+import { test as base, expect } from '@playwright/test';
+import { SaucedemoComPage } from '../pages/SaucedemoComPage';
+
+type Fixtures = { saucedemoComPage: SaucedemoComPage };
+
+export const test = base.extend<Fixtures>({
+  saucedemoComPage: async ({ page }, use) => {
+    await use(new SaucedemoComPage(page));
+  },
+});
+
+export { expect };
+```
+
 **`tests/www-saucedemo-com.spec.ts`** — only scenarios the critic graded
 `ship` or `weak`:
 
 ```ts
-import { test, expect } from '@playwright/test';
-import { SaucedemoComPage } from '../pages/SaucedemoComPage';
+import { test, expect } from '../fixtures/pages';
 
 test.describe("veriplay: https://www.saucedemo.com/", () => {
-  test("[happy] accepts valid credentials", async ({ page }) => {
-    const p = new SaucedemoComPage(page);
-    await p.goto(p.url);
-    await p.usernameInput.fill("standard_user");
-    await p.passwordInput.fill("secret_sauce");
-    await p.loginButton.click();
+  test("[happy] accepts valid credentials", async ({ page, saucedemoComPage }) => {
+    await saucedemoComPage.goto(saucedemoComPage.url);
+    await saucedemoComPage.usernameInput.fill("standard_user");
+    await saucedemoComPage.passwordInput.fill("secret_sauce");
+    await saucedemoComPage.loginButton.click();
     await expect(page).toHaveURL(new RegExp("/inventory.html"));
   });
   // ...

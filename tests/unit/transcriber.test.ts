@@ -82,6 +82,58 @@ describe('transcribe (POM mode)', () => {
   });
 });
 
+describe('transcribe — fixtures (POM mode)', () => {
+  it('emits fixtures/pages.ts with test+expect re-exports', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login' });
+    const fixturePath = path.join(outDir, 'fixtures', 'pages.ts');
+    expect(fs.existsSync(fixturePath)).toBe(true);
+    const src = fs.readFileSync(fixturePath, 'utf8');
+    expect(src).toContain("import { test as base, expect } from '@playwright/test'");
+    expect(src).toContain('export const test = base.extend');
+    expect(src).toContain('export { expect }');
+  });
+
+  it('fixture file imports the page object class and registers it as a fixture', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login' });
+    const src = fs.readFileSync(path.join(outDir, 'fixtures', 'pages.ts'), 'utf8');
+    expect(src).toContain("import { ExampleComPage } from '../pages/ExampleComPage'");
+    expect(src).toMatch(/exampleComPage:\s*async\s*\(\s*\{\s*page\s*\}\s*,\s*use\s*\)\s*=>/);
+    expect(src).toContain('await use(new ExampleComPage(page))');
+  });
+
+  it('spec imports test+expect from ../fixtures/pages instead of @playwright/test', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login' });
+    const spec = fs.readFileSync(path.join(outDir, 'tests', 'login.spec.ts'), 'utf8');
+    expect(spec).toContain("import { test, expect } from '../fixtures/pages'");
+    expect(spec).not.toContain("from '@playwright/test'");
+    // The spec no longer needs to import the page class directly:
+    expect(spec).not.toContain("import { ExampleComPage }");
+  });
+
+  it('test bodies destructure { page, <pageVar> } and do not new the page object', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login' });
+    const spec = fs.readFileSync(path.join(outDir, 'tests', 'login.spec.ts'), 'utf8');
+    expect(spec).toMatch(/async\s*\(\s*\{\s*page\s*,\s*exampleComPage\s*\}\s*\)\s*=>/);
+    expect(spec).not.toContain('new ExampleComPage(page)');
+    expect(spec).not.toMatch(/const\s+exampleComPage\s*=/);
+  });
+
+  it('javascript mode emits fixtures/pages.js without type annotations', () => {
+    transcribe({ report: { ...makeReport(), language: 'js' }, outDir, name: 'login' });
+    const fixturePath = path.join(outDir, 'fixtures', 'pages.js');
+    expect(fs.existsSync(fixturePath)).toBe(true);
+    const src = fs.readFileSync(fixturePath, 'utf8');
+    expect(src).toContain('base.extend({');
+    expect(src).not.toContain('type Fixtures');
+    expect(src).not.toContain(': ExampleComPage');
+  });
+
+  it('--no-pom mode does not emit a fixtures directory', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login', pom: false });
+    expect(fs.existsSync(path.join(outDir, 'fixtures'))).toBe(false);
+  });
+});
+
 describe('transcribe — a11y auto-inject', () => {
   it('always writes a11y/landing.a11y.spec.ts in POM mode', () => {
     transcribe({ report: makeReport(), outDir, name: 'login' });
