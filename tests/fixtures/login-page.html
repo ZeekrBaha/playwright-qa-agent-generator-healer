@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head><title>Login</title></head>
+<body>
+  <h1>Login</h1>
+  <form id="login">
+    <label>Username <input id="user" aria-label="Username" /></label>
+    <label>Password <input id="pass" type="password" aria-label="Password" /></label>
+    <button type="submit">Sign in</button>
+  </form>
+  <div id="error" style="display:none">Invalid credentials</div>
+  <script>
+    document.getElementById('login').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const u = document.getElementById('user').value;
+      const p = document.getElementById('pass').value;
+      if (u === 'baha' && p === 'secret') {
+        location.hash = '#/inventory';
+        document.body.innerHTML = '<h1>Welcome to Inventory</h1>';
+      } else {
+        document.getElementById('error').style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>
