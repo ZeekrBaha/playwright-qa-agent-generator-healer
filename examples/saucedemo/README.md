@@ -20,7 +20,8 @@ reference.
 |---|---|
 | [`pages/BasePage.ts`](pages/BasePage.ts) | Base Page Object class (shared `goto`) |
 | [`pages/SaucedemoComPage.ts`](pages/SaucedemoComPage.ts) | Page Object with cascade-chosen locators |
-| [`tests/www-saucedemo-com.spec.ts`](tests/www-saucedemo-com.spec.ts) | The generated Playwright spec |
+| [`fixtures/pages.ts`](fixtures/pages.ts) | Custom Playwright fixture — injects the Page Object into every test so the spec never has to call `new SaucedemoComPage(page)` |
+| [`tests/www-saucedemo-com.spec.ts`](tests/www-saucedemo-com.spec.ts) | The generated Playwright spec — imports `test`/`expect` from the fixture |
 | [`a11y/landing.a11y.spec.ts`](a11y/landing.a11y.spec.ts) | axe-core WCAG 2 AA check auto-injected by the transcriber |
 | [`run-report.json`](run-report.json) | Agent trace, cascade stats, critic verdicts, cost breakdown |
 
