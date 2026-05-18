@@ -215,19 +215,19 @@ export const test = base.extend<Fixtures>({
 export { expect };
 ```
 
-**`tests/www-saucedemo-com.spec.ts`** — only scenarios the critic graded
-`ship` or `weak`:
+**`tests/www-saucedemo-com.spec.ts`** — the Playwright spec the critic graded
+ship-worthy:
 
 ```ts
 import { test, expect } from '../fixtures/pages';
 
-test.describe("veriplay: https://www.saucedemo.com/", () => {
-  test("[happy] accepts valid credentials", async ({ page, saucedemoComPage }) => {
+test.describe("veriplay: https://www.saucedemo.com", () => {
+  test("[happy] logs in with valid credentials", async ({ page, saucedemoComPage }) => {
     await saucedemoComPage.goto(saucedemoComPage.url);
     await saucedemoComPage.usernameInput.fill("standard_user");
     await saucedemoComPage.passwordInput.fill("secret_sauce");
     await saucedemoComPage.loginButton.click();
-    await expect(page).toHaveURL(new RegExp("/inventory.html"));
+    await expect(page).toHaveURL(new RegExp("inventory.html"));
   });
   // ...
 });
@@ -235,7 +235,7 @@ test.describe("veriplay: https://www.saucedemo.com/", () => {
 
 **`a11y/landing.a11y.spec.ts`** — axe-core check auto-injected for WCAG 2 AA.
 
-Run it: `npx playwright test --project=chromium` → `4 passed (4.3s)`.
+Run it: `npx playwright test --project=chromium` → `3 passed (1.3s)`.
 
 ---
 

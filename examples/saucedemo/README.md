@@ -25,14 +25,30 @@ reference.
 | [`a11y/landing.a11y.spec.ts`](a11y/landing.a11y.spec.ts) | axe-core WCAG 2 AA check auto-injected by the transcriber |
 | [`run-report.json`](run-report.json) | Agent trace, cascade stats, critic verdicts, cost breakdown |
 
-## Result
+## This run
 
-When run against the live site:
+| | |
+|---|---|
+| Date | 2026-05-18 |
+| Scenarios emitted | 3 (verdicts: 1 ship, 2 fix — see `run-report.json` `review.verdicts`) |
+| Plan size | 5 scenarios (planner asked for `happy`, `negative`, `a11y`, `negative`, `negative`) |
+| Cascade | 15/15 intents resolved at `getByRole` level |
+| Cost | $0.023 (106k input tokens, 83k cached, 1.9k output) |
+| Models | `gpt-4o-mini` for planner, explorer, critic |
+| Live result | `npx playwright test --project=chromium` → **3 passed (1.3s)** |
 
-```bash
-npx playwright test --project=chromium
-# 4 passed (4.3s)
-```
+## Honest notes
+
+The model exhausted the explorer step budget (40 steps, raised once via
+`category_followup` for the missing `a11y` scenario, then exhausted again).
+It kept trying to click an intent it called `"login-button"` — the cascade
+couldn't resolve that exact string, but `"login button"` would have. The
+plan had 5 scenarios; only 3 produced enough useful trace to survive the
+critic.
+
+This is the authentic output of a fresh run, not a curated one. The point of
+checking it in is for reviewers to see what the tool actually produces, warts
+and all — not just a best-case demo.
 
 ## What to look at
 
@@ -41,9 +57,11 @@ npx playwright test --project=chromium
   for every intent during the explore run. If saucedemo lost ARIA roles,
   the transcriber would emit `getByLabel` / `getByPlaceholder` / `getByTestId`
   / `page.locator(css)` instead, depending on which level resolved.
-- **`tests/www-saucedemo-com.spec.ts`** — only scenarios the critic graded
-  `ship` or `weak` survived. `fix`-graded scenarios are dropped from the
-  emitted suite (the rationale lives in `run-report.json` under `verdicts`).
+- **`fixtures/pages.ts`** — the Playwright fixture pattern. Tests destructure
+  `{ page, saucedemoComPage }` and the Page Object is constructed once per
+  test by the fixture function. When you add a second page object later,
+  it's one new entry here — the test bodies don't change.
 - **`run-report.json`** — `cascadeStats` shows how many intents resolved at
-  each level; `costUsd` shows the run cost; `events` shows every tool call
-  the explorer made in order.
+  each level; `cost` shows the run cost; `review.verdicts` shows the critic's
+  ship/weak/fix grade per scenario; `plan` shows what the planner asked for
+  vs what the explorer actually produced (the delta is informative).
