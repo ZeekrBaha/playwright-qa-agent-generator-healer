@@ -1,0 +1,275 @@
+{
+  "url": "https://www.saucedemo.com/",
+  "language": "ts",
+  "scenarios": [
+    {
+      "name": "accepts valid credentials",
+      "category": "happy",
+      "steps": [
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "username"
+            },
+            "intent": "username input"
+          },
+          "value": "standard_user"
+        },
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "password"
+            },
+            "intent": "password input"
+          },
+          "value": "secret_sauce"
+        },
+        {
+          "kind": "click",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "button",
+              "name": "login"
+            },
+            "intent": "login button"
+          }
+        },
+        {
+          "kind": "assert",
+          "name": "URL matches //inventory.html/",
+          "assertion": {
+            "type": "toHaveURL",
+            "pattern": "/inventory.html"
+          }
+        }
+      ]
+    },
+    {
+      "name": "rejects invalid password",
+      "category": "negative",
+      "steps": [
+        {
+          "kind": "navigate",
+          "url": "https://www.saucedemo.com/"
+        },
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "username"
+            },
+            "intent": "username input"
+          },
+          "value": "standard_user"
+        },
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "password"
+            },
+            "intent": "password input"
+          },
+          "value": "wrong_password"
+        },
+        {
+          "kind": "click",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "button",
+              "name": "login"
+            },
+            "intent": "login button"
+          }
+        },
+        {
+          "kind": "wait",
+          "ms": 1000
+        },
+        {
+          "kind": "wait",
+          "ms": 2000
+        },
+        {
+          "kind": "navigate",
+          "url": "https://www.saucedemo.com/"
+        },
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "username"
+            },
+            "intent": "username input"
+          },
+          "value": ""
+        },
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "password"
+            },
+            "intent": "password input"
+          },
+          "value": "secret_sauce"
+        },
+        {
+          "kind": "click",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "button",
+              "name": "login"
+            },
+            "intent": "login button"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User logs in with valid credentials and reaches the products page",
+      "category": "happy",
+      "steps": [
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "username"
+            },
+            "intent": "username input"
+          },
+          "value": "standard_user"
+        },
+        {
+          "kind": "fill",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "textbox",
+              "name": "password"
+            },
+            "intent": "password"
+          },
+          "value": "secret_sauce"
+        },
+        {
+          "kind": "click",
+          "target": {
+            "level": "role",
+            "arg": {
+              "role": "button",
+              "name": "login"
+            },
+            "intent": "login button"
+          }
+        },
+        {
+          "kind": "assert",
+          "name": "URL matches /inventory.html/",
+          "assertion": {
+            "type": "toHaveURL",
+            "pattern": "inventory.html"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User tries to log in with invalid credentials",
+      "category": "negative",
+      "steps": [
+        {
+          "kind": "navigate",
+          "url": "https://www.saucedemo.com/"
+        }
+      ]
+    }
+  ],
+  "cascadeStats": {
+    "role": 18,
+    "label": 0,
+    "testid": 0,
+    "css": 0
+  },
+  "cost": {
+    "inputTokens": 123827,
+    "outputTokens": 2082,
+    "cachedTokens": 101888,
+    "usd": 0.02746485,
+    "plannerUsd": 0.0001341,
+    "criticUsd": 0.0001743
+  },
+  "steps": 73,
+  "startedAt": "2026-05-18T04:01:47.111Z",
+  "finishedAt": "2026-05-18T04:05:40.451Z",
+  "plan": [
+    {
+      "name": "accepts valid credentials",
+      "category": "happy",
+      "rationale": "The user successfully logs in with valid username and password."
+    },
+    {
+      "name": "rejects invalid password",
+      "category": "negative",
+      "rationale": "The user fails to log in with an incorrect password."
+    },
+    {
+      "name": "alerts when username is empty",
+      "category": "negative",
+      "rationale": "The user receives an error message when attempting to log in without entering a username."
+    },
+    {
+      "name": "provides accessible labels for inputs",
+      "category": "a11y",
+      "rationale": "Input fields have associated labels for screen reader compatibility."
+    },
+    {
+      "name": "does not allow login with empty credentials",
+      "category": "negative",
+      "rationale": "The user is unable to log in without entering both username and password."
+    }
+  ],
+  "review": {
+    "verdicts": [
+      {
+        "scenario": "[happy] accepts valid credentials",
+        "verdict": "ship",
+        "reason": "The assertion specifically checks that the URL matches the expected inventory page after login."
+      },
+      {
+        "scenario": "[negative] rejects invalid password",
+        "verdict": "weak",
+        "reason": "The assertion is missing. The scenario demonstrates rejection but does not assert any expected outcome after trying invalid credentials."
+      },
+      {
+        "scenario": "[happy] User logs in with valid credentials and reaches the products page",
+        "verdict": "ship",
+        "reason": "The assertion checks if the user is directed to the correct inventory page, which is meaningful."
+      },
+      {
+        "scenario": "[negative] User tries to log in with invalid credentials",
+        "verdict": "fix",
+        "reason": "The scenario is incomplete. It doesn't specify actions taken or expected outcomes, so no valid assertion is present."
+      }
+    ],
+    "summary": "Overall, the tests have a mix of good assertions and some missing or vague ones."
+  }
+}
