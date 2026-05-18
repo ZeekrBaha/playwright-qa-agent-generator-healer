@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { resolve as resolveSelector, type CascadeLevel } from './selectors.ts';
 import { withRetry } from './retry.ts';
@@ -221,4 +222,69 @@ export async function proposeNewSelector(opts: {
     level: resolved.level,
     arg: resolved.arg,
   };
+}
+
+export interface SpecEdit {
+  line: number;
+  col: number;
+  oldRaw: string;
+  newRaw: string;
+}
+
+const SELECTOR_LINE_PATTERNS = [
+  /page\.getByRole\([^)]+\)/g,
+  /page\.getByLabel\([^)]+\)/g,
+  /page\.getByTestId\([^)]+\)/g,
+  /page\.locator\([^)]+\)/g,
+];
+
+export function extractSelectorCalls(src: string): SelectorCall[] {
+  const calls: SelectorCall[] = [];
+  const lines = src.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
+    for (const re of SELECTOR_LINE_PATTERNS) {
+      re.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(line)) !== null) {
+        const raw = m[0];
+        const level: CascadeLevel = raw.includes('getByRole')   ? 'role'
+                                  : raw.includes('getByLabel')  ? 'label'
+                                  : raw.includes('getByTestId') ? 'testid'
+                                  :                                'css';
+        calls.push({ raw, level, line: i + 1, col: m.index });
+      }
+    }
+  }
+  return calls;
+}
+
+export function writeHealedSpec(specPath: string, src: string, edits: SpecEdit[]): string {
+  const lines = src.split('\n');
+  const byLine = new Map<number, SpecEdit[]>();
+  for (const e of edits) {
+    const list = byLine.get(e.line) ?? [];
+    list.push(e);
+    byLine.set(e.line, list);
+  }
+  for (const [lineNum, list] of byLine) {
+    list.sort((a, b) => b.col - a.col); // right-to-left to preserve offsets
+    let line = lines[lineNum - 1] ?? '';
+    for (const e of list) {
+      line =
+        line.slice(0, e.col) +
+        `/* veriplay: healed (was ${e.oldRaw.replace(/\*\//g, '*\\/')}) */ ${e.newRaw}` +
+        line.slice(e.col + e.oldRaw.length);
+    }
+    lines[lineNum - 1] = line;
+  }
+  // Treat compound test extensions (.spec.ts, .spec.js, .test.ts, .test.js) as one unit
+  // so that login.spec.ts -> login.healed.spec.ts, not login.spec.healed.ts.
+  const compound = specPath.match(/\.(spec|test)\.(ts|tsx|js|jsx|mjs|cjs)$/);
+  const ext = compound ? compound[0] : path.extname(specPath);
+  const base = specPath.slice(0, -ext.length);
+  const healedPath = `${base}.healed${ext}`;
+  fs.writeFileSync(healedPath, lines.join('\n'));
+  return healedPath;
 }
