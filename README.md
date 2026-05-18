@@ -19,7 +19,6 @@
 ## Table of contents
 
 - [What it does](#what-it-does)
-- [The killer feature](#the-killer-feature-verified-by-execution--selector-cascade)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
 - [What you get](#what-you-get)
@@ -46,26 +45,6 @@
    report, distinguishes selector misses from real assertion failures, opens a
    fresh browser, asks the LLM for a replacement selector, verifies it lives,
    and rewrites the spec.
-
----
-
-## The killer feature: verified-by-execution + selector cascade
-
-Most LLM-driven test generators emit code that *looks* plausible, then crash on
-first run because the selectors don't actually exist. veriplay never emits a
-step it didn't watch succeed. The agent navigates, queries the live DOM through
-its own tools, and when it calls `click({ intent: "submit button" })` the
-runtime resolves that intent through a five-level **cascade** —
-`getByRole` → `getByLabel` → `getByPlaceholder` → `getByTestId` →
-`page.locator(css)` — and records which level won. The transcriber then emits
-exactly that level.
-
-Every assertion in the generated suite was observed true in the live browser
-before it was written to disk. The cascade is what makes the tests durable:
-when the DOM changes class names or test-ids, the role-based selector still
-resolves, and when even that breaks, the `heal` command reads the failure
-report and proposes a new selector that the LLM watched succeed in a fresh
-browser session.
 
 ---
 
@@ -236,6 +215,29 @@ test.describe("veriplay: https://www.saucedemo.com", () => {
 **`a11y/landing.a11y.spec.ts`** — axe-core check auto-injected for WCAG 2 AA.
 
 Run it: `npx playwright test --project=chromium` → `3 passed (1.3s)`.
+
+### A second example with a different cascade level
+
+A second checked-in run lives at
+[`examples/practicesoftwaretesting/`](examples/practicesoftwaretesting/) — a
+search-driven docs site instead of a login form. Same tool, same transcriber,
+but **100% of intents resolved at `getByLabel`** rather than `getByRole`
+because the site uses `<label>` elements not ARIA roles. The emitted Page
+Object reflects that:
+
+```ts
+this.search = page.getByLabel("Search");
+```
+
+The two examples side by side show the cascade adapting to whatever the
+target site exposes, without the transcriber needing to know in advance.
+
+| | saucedemo | practicesoftwaretesting |
+|---|---|---|
+| Workflow | Login → inventory | Search → docs |
+| Cascade | 15/15 `getByRole` | 7/7 `getByLabel` |
+| Tests emitted | 3 | 3 |
+| Tests passing | 3/3 | 2/3 (one model misinterpretation) |
 
 ---
 

@@ -1,0 +1,150 @@
+{
+  "url": "https://practicesoftwaretesting.com/",
+  "language": "ts",
+  "scenarios": [
+    {
+      "name": "user navigates to testing guide",
+      "category": "happy",
+      "steps": [
+        {
+          "kind": "fill",
+          "target": {
+            "level": "label",
+            "arg": "Search",
+            "intent": "Search"
+          },
+          "value": "Testing Guide"
+        },
+        {
+          "kind": "press",
+          "target": {
+            "level": "label",
+            "arg": "Search",
+            "intent": "Search"
+          },
+          "key": "Enter"
+        },
+        {
+          "kind": "assert",
+          "name": "Search is visible",
+          "assertion": {
+            "type": "toBeVisible",
+            "target": {
+              "level": "label",
+              "arg": "Search",
+              "intent": "Search"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "user attempts to report a bug without input",
+      "category": "negative",
+      "steps": [
+        {
+          "kind": "fill",
+          "target": {
+            "level": "label",
+            "arg": "Search",
+            "intent": "Search"
+          },
+          "value": "Report Bug"
+        },
+        {
+          "kind": "press",
+          "target": {
+            "level": "label",
+            "arg": "Search",
+            "intent": "Search"
+          },
+          "key": "Enter"
+        },
+        {
+          "kind": "assert",
+          "name": "X is visible",
+          "assertion": {
+            "type": "toBeVisible",
+            "target": {
+              "level": "label",
+              "arg": "X",
+              "intent": "X"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ensure all buttons have accessible labels",
+      "category": "a11y",
+      "steps": [
+        {
+          "kind": "assert",
+          "name": "Search is visible",
+          "assertion": {
+            "type": "toBeVisible",
+            "target": {
+              "level": "label",
+              "arg": "Search",
+              "intent": "Search"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "cascadeStats": {
+    "role": 0,
+    "label": 7,
+    "testid": 0,
+    "css": 0
+  },
+  "cost": {
+    "inputTokens": 112559,
+    "outputTokens": 657,
+    "cachedTokens": 96256,
+    "usd": 0.02449725,
+    "plannerUsd": 0.00010725,
+    "criticUsd": 0.0001302
+  },
+  "steps": 32,
+  "startedAt": "2026-05-18T16:56:35.438Z",
+  "finishedAt": "2026-05-18T16:57:09.924Z",
+  "plan": [
+    {
+      "name": "navigates to testing guide",
+      "category": "happy",
+      "rationale": "User clicks on the 'Testing Guide' button and is taken to the relevant guide."
+    },
+    {
+      "name": "reports a bug without action",
+      "category": "negative",
+      "rationale": "User attempts to report a bug by clicking '🐛 Bug Hunting' but fails due to no input or validation."
+    },
+    {
+      "name": "ensures accessible button labels",
+      "category": "a11y",
+      "rationale": "All buttons have visible and understandable labels for screen readers."
+    }
+  ],
+  "review": {
+    "verdicts": [
+      {
+        "scenario": "user navigates to testing guide",
+        "verdict": "weak",
+        "reason": "The assertion is too loose as it only checks if the Search is visible but does not confirm the final navigation outcome."
+      },
+      {
+        "scenario": "user attempts to report a bug without input",
+        "verdict": "fix",
+        "reason": "The assertion checks for 'X visible', but it is unclear what 'X' refers to and does not indicate expected behavior."
+      },
+      {
+        "scenario": "ensure all buttons have accessible labels",
+        "verdict": "fix",
+        "reason": "The assertion is about the visibility of Search, which does not verify if buttons have accessible labels."
+      }
+    ],
+    "summary": "Several assertions are either too loose or incorrect for the scenarios."
+  }
+}
