@@ -1,0 +1,21 @@
+{
+  "config": {
+    "projects": [{"name": "chromium", "use": {"baseURL": "https://example.com"}}]
+  },
+  "suites": [{
+    "specs": [{
+      "title": "login flow",
+      "tests": [{
+        "results": [{
+          "status": "failed",
+          "error": {
+            "message": "locator.click: Test timeout of 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Sign in' })",
+            "stack": "TimeoutError: locator.click: Test timeout of 30000ms exceeded.\n    at /tests/login.spec.ts:12:5",
+            "value": "TimeoutError"
+          },
+          "attachments": []
+        }]
+      }]
+    }]
+  }]
+}

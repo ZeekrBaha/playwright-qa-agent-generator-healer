@@ -1,0 +1,19 @@
+{
+  "config": {"projects": [{"name": "chromium", "use": {}}]},
+  "suites": [{
+    "specs": [{
+      "title": "checkout",
+      "tests": [{
+        "results": [{
+          "status": "failed",
+          "error": {
+            "message": "Element not found: page.getByTestId('checkout-btn')",
+            "stack": "Error: Element not found at page.goto('https://checkout.example.com/start')\n    at /tests/checkout.spec.ts:8:3",
+            "value": "Error"
+          },
+          "attachments": []
+        }]
+      }]
+    }]
+  }]
+}
