@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { resolve as resolveSelector, type CascadeLevel } from './selectors.ts';
 import { withRetry } from './retry.ts';
 import type OpenAI from 'openai';
-import type { Page } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 
 export interface FailureContext {
   testTitle: string;
@@ -287,4 +287,125 @@ export function writeHealedSpec(specPath: string, src: string, edits: SpecEdit[]
   const healedPath = `${base}.healed${ext}`;
   fs.writeFileSync(healedPath, lines.join('\n'));
   return healedPath;
+}
+
+// ─────────────────────────────────────────────────────────────
+// heal() orchestrator: parseReport → proposeNewSelector → writeHealedSpec
+// ─────────────────────────────────────────────────────────────
+
+export interface HealResult {
+  healedPath: string | null;
+  healed: number;
+  total: number;
+}
+
+export type HealEvent =
+  | { type: 'running_spec' }
+  | { type: 'failures_found'; count: number }
+  | { type: 'healing'; selector: string; url: string }
+  | { type: 'healed'; old: string; new: string; level: CascadeLevel; confidence: number }
+  | { type: 'unhealed'; reason: string; selector: string }
+  | { type: 'done'; healedPath: string | null; healed: number; total: number };
+
+export async function heal(opts: {
+  specPath: string;
+  openai: OpenAI;
+  reportPath?: string; // pre-existing JSON report (skip running playwright)
+  onEvent?: (e: HealEvent) => void;
+}): Promise<HealResult> {
+  const specPath = path.resolve(opts.specPath);
+  if (!fs.existsSync(specPath)) throw new Error(`Spec not found: ${specPath}`);
+
+  opts.onEvent?.({ type: 'running_spec' });
+
+  // For v1: require a pre-existing report path (running playwright from CLI is complex; defer to v2)
+  const reportPath = opts.reportPath;
+  if (!reportPath) {
+    throw new Error('heal v1 requires --report <playwright-json-report-path>');
+  }
+
+  const failures = parseReport(reportPath);
+  opts.onEvent?.({ type: 'failures_found', count: failures.length });
+  if (failures.length === 0) {
+    opts.onEvent?.({ type: 'done', healedPath: null, healed: 0, total: 0 });
+    return { healedPath: null, healed: 0, total: 0 };
+  }
+
+  const specSrc = fs.readFileSync(specPath, 'utf8');
+  const calls = extractSelectorCalls(specSrc);
+
+  let browser: Browser | undefined;
+  const edits: SpecEdit[] = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    for (const failure of failures) {
+      const call = calls.find((c) => c.raw === failure.selectorRaw);
+      if (!call) {
+        opts.onEvent?.({
+          type: 'unhealed',
+          reason: 'no matching selector call in spec',
+          selector: failure.selectorRaw ?? '',
+        });
+        continue;
+      }
+      opts.onEvent?.({ type: 'healing', selector: call.raw, url: failure.url });
+
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(failure.url, { waitUntil: 'domcontentloaded' });
+        const proposal = await proposeNewSelector({
+          openai: opts.openai,
+          page,
+          oldCall: call,
+          failure,
+        });
+        if (!proposal) {
+          opts.onEvent?.({
+            type: 'unhealed',
+            reason: 'proposal failed or low confidence',
+            selector: call.raw,
+          });
+          continue;
+        }
+        const newRaw = emitNewCall(proposal.level, proposal.arg);
+        edits.push({ line: call.line, col: call.col, oldRaw: call.raw, newRaw });
+        opts.onEvent?.({
+          type: 'healed',
+          old: call.raw,
+          new: newRaw,
+          level: proposal.level,
+          confidence: proposal.confidence,
+        });
+      } finally {
+        await ctx.close();
+      }
+    }
+  } finally {
+    await browser?.close();
+  }
+
+  if (edits.length === 0) {
+    opts.onEvent?.({ type: 'done', healedPath: null, healed: 0, total: failures.length });
+    return { healedPath: null, healed: 0, total: failures.length };
+  }
+
+  const healedPath = writeHealedSpec(specPath, specSrc, edits);
+  opts.onEvent?.({ type: 'done', healedPath, healed: edits.length, total: failures.length });
+  return { healedPath, healed: edits.length, total: failures.length };
+}
+
+function emitNewCall(level: CascadeLevel, arg: unknown): string {
+  switch (level) {
+    case 'role': {
+      const a = arg as { role: string; name: string };
+      return `page.getByRole(${JSON.stringify(a.role)}, { name: ${JSON.stringify(a.name)} })`;
+    }
+    case 'label':
+      return `page.getByLabel(${JSON.stringify(arg as string)})`;
+    case 'testid':
+      return `page.getByTestId(${JSON.stringify(arg as string)})`;
+    case 'css':
+      return `page.locator(${JSON.stringify(arg as string)})`;
+  }
 }
