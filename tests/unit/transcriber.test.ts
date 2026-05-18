@@ -81,3 +81,25 @@ describe('transcribe (POM mode)', () => {
     expect(fs.existsSync(path.join(outDir, 'pages'))).toBe(false);
   });
 });
+
+describe('transcribe — a11y auto-inject', () => {
+  it('always writes a11y/landing.a11y.spec.ts in POM mode', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login' });
+    const a11yFile = path.join(outDir, 'a11y', 'landing.a11y.spec.ts');
+    expect(fs.existsSync(a11yFile)).toBe(true);
+    const content = fs.readFileSync(a11yFile, 'utf8');
+    expect(content).toContain('AxeBuilder');
+    expect(content).toContain('wcag2aa');
+    expect(content).toContain('https://example.com/login');
+  });
+
+  it('also writes a11y in inline mode', () => {
+    transcribe({ report: makeReport(), outDir, name: 'login', pom: false });
+    expect(fs.existsSync(path.join(outDir, 'a11y', 'landing.a11y.spec.ts'))).toBe(true);
+  });
+
+  it('javascript mode produces a11y .js file', () => {
+    transcribe({ report: { ...makeReport(), language: 'js' }, outDir, name: 'login' });
+    expect(fs.existsSync(path.join(outDir, 'a11y', 'landing.a11y.spec.js'))).toBe(true);
+  });
+});

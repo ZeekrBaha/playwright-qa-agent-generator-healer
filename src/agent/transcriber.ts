@@ -18,6 +18,22 @@ export function transcribe(opts: TranscribeOptions): void {
   } else {
     emitInline(opts);
   }
+  emitA11ySpec(opts);
+}
+
+function emitA11ySpec(opts: TranscribeOptions): void {
+  const ext = opts.report.language === 'js' ? 'js' : 'ts';
+  fs.mkdirSync(path.join(opts.outDir, 'a11y'), { recursive: true });
+  const src = `import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('landing page has no detectable a11y violations (WCAG 2 AA)', async ({ page }) => {
+  await page.goto(${JSON.stringify(opts.report.url)});
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(results.violations).toEqual([]);
+});
+`;
+  fs.writeFileSync(path.join(opts.outDir, 'a11y', `landing.a11y.spec.${ext}`), src);
 }
 
 /* ───── POM mode ───── */
