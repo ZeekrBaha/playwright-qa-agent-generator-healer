@@ -1,0 +1,39 @@
+{
+  "name": "veriplay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous QA agent — Playwright test suites generated from a verified browser session, powered by OpenAI.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "explore": "tsx src/cli/explore.ts",
+    "heal": "tsx src/cli/heal.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src tests",
+    "format": "biome format --write src tests",
+    "check": "npm run typecheck && npm run lint && npm run test"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@playwright/test": "^1.60.0",
+    "dotenv": "^17.4.2",
+    "openai": "^4.104.0",
+    "playwright": "^1.60.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@types/node": "^25.8.0",
+    "@vitest/coverage-v8": "^4.1.6",
+    "tsx": "^4.22.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "gpt-4o-mini": { "in": 0.15, "out": 0.60, "cachedIn": 0.075 },
+  "gpt-4o":      { "in": 2.50, "out": 10.00, "cachedIn": 1.25 },
+  "gpt-5-mini":  { "in": 0.30, "out": 1.20,  "cachedIn": 0.15 },
+  "gpt-5":       { "in": 5.00, "out": 20.00, "cachedIn": 2.50 }
+}
