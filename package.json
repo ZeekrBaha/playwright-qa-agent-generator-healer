@@ -1,0 +1,20 @@
+{
+  "name": "veriplay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous QA agent — Playwright test suites generated from a verified browser session, powered by OpenAI.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "explore":      "tsx src/cli/explore.ts",
+    "heal":         "tsx src/cli/heal.ts",
+    "mcp":          "tsx src/mcp/server.ts",
+    "test":         "vitest run",
+    "test:watch":   "vitest",
+    "test:coverage":"vitest run --coverage",
+    "typecheck":    "tsc --noEmit",
+    "lint":         "biome check src tests",
+    "format":       "biome format --write src tests",
+    "check":        "npm run typecheck && npm run lint && npm run test"
+  }
+}
