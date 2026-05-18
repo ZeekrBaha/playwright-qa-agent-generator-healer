@@ -26,12 +26,10 @@
 - [Commands](#commands)
 - [How it works](#how-it-works)
 - [Tech stack](#tech-stack)
-- [The 9 design decisions](#the-9-design-decisions)
-- [veriplay vs qa-core-agent-openclaw](#veriplay-vs-qa-core-agent-openclaw)
+- [Features](#features)
 - [Project layout](#project-layout)
 - [Configuration](#configuration)
 - [Tests](#tests)
-- [Attribution](#attribution)
 - [License](#license)
 
 ---
@@ -326,24 +324,23 @@ directly.
 
 ---
 
-## The 9 design decisions
+## Features
 
-veriplay was designed after a code review of qa-core-agent-openclaw exposed
-nine specific weaknesses. Each fix is enumerated below with its source-file
-reference. The corresponding rationale lives in
-[`docs/superpowers/specs/2026-05-17-veriplay-design.md`](./docs/superpowers/specs/2026-05-17-veriplay-design.md).
+Nine design choices that make veriplay's output durable, debuggable, and
+CI-safe. Each is enumerated below with a source-file reference.
 
-### W1 — Structured LLM output via tool calls, not regex parsing
+### 1. Structured LLM output via tool calls
 
-The planner, critic, and healer all use `tool_choice: { type: 'function' }`
-with zod-validated arguments. There is no `/```json(.+?)```/s` anywhere in
-the codebase.
+Planner, critic, and healer all use `tool_choice: { type: 'function' }` with
+zod-validated arguments. The model is forced to return a tool call; the
+payload is parsed by a schema, not by regex over a markdown code block.
+There is no `/```json(.+?)```/s` anywhere in the codebase.
 
 - Planner schema: [`src/agent/planner.ts:12`](src/agent/planner.ts) (`PlanSchema`) and tool def (`submit_plan`).
 - Critic schema: [`src/agent/critic.ts:12`](src/agent/critic.ts) (`VerdictsSchema`) and tool def (`submit_verdicts`).
 - Healer tool: [`src/agent/heal.ts`](src/agent/heal.ts) (`propose_selector` definition).
 
-### W2 — Vitest unit tests for every pure function, TDD-first
+### 2. TDD-first with 97 unit tests
 
 97 tests across 17 files. Every pure function in `src/agent/` is unit-tested.
 The CI gate is `npm run check` (typecheck + lint + tests). Coverage is
@@ -354,64 +351,67 @@ configured in `vitest.config.ts`; target is ≥85% on `src/agent/*`.
   [`tests/e2e/saucedemo.test.ts`](tests/e2e/saucedemo.test.ts).
 - Coverage config: [`vitest.config.ts`](vitest.config.ts).
 
-### W3 — `get_dom` signals truncation explicitly
+### 3. Explicit DOM truncation signal
 
-Returning a truncated DOM without a flag makes the LLM hallucinate
-"the rest of the page." veriplay returns `{ elements, truncated, counts }`
-so the model knows to re-call with an offset.
+The `get_dom` tool returns `{ elements, truncated, counts }` so the LLM
+knows when it's reading a partial view and can re-call with an offset.
+Silent truncation makes models hallucinate "the rest of the page"; veriplay
+prevents that by making partial-view explicit.
 
 - DOM summarizer: [`src/agent/tools.ts`](src/agent/tools.ts) (`summarizeDom`).
 
-### W4 — Pricing loaded from `prices.json`, loud warning on unknown IDs
+### 4. Externalised pricing with loud failure mode
 
-Hardcoded model prices rot silently. veriplay reads
-[`src/agent/prices.json`](src/agent/prices.json) and returns `null` for
-unknown model IDs (rather than falling back to a wrong default) plus a
-`console.warn` pointing at the file.
+Model prices live in [`src/agent/prices.json`](src/agent/prices.json), not in
+source. `priceFor` returns `null` for unknown model IDs (rather than falling
+back to a default that's quietly wrong) plus a `console.warn` pointing at
+the file. Unknown model IDs disable cost tracking for the run; they never
+silently mis-bill.
 
 - Price lookup: [`src/agent/pricing.ts`](src/agent/pricing.ts) (`priceFor` returns `null` + warns).
 
-### W5 — Atomic memory writes + per-host advisory lock + decay
+### 5. Atomic memory writes, advisory lock, intent decay
 
 Per-host memory (`~/.veriplay/memory/<host>.json`) is written via
 `fs.writeFileSync(tmp); fs.renameSync(tmp, file)` under a `.lock` advisory
-file. Known-intent records decay so stale selectors don't accumulate.
+file with a 5-minute TTL. Known-intent records decay after 30 days so stale
+selectors don't accumulate as a site evolves.
 
 - Lock + atomic write + decay: [`src/agent/memory.ts`](src/agent/memory.ts).
 
-### W6 — Runtime enforces category coverage, not just the prompt
+### 6. Runtime-enforced scenario coverage
 
 Asking the prompt nicely for "at least one negative and one a11y scenario"
-isn't enforcement. The runtime checks the categories actually produced and
-issues a follow-up turn requiring the missing category before allowing
-`finish`.
+isn't enforcement. The runtime inspects which categories the model actually
+produced and issues a follow-up turn requiring the missing category before
+allowing `finish`. Categories are a contract, not a suggestion.
 
 - Enforcement loop: [`src/agent/runtime.ts`](src/agent/runtime.ts)
   (`for (const required of ['negative', 'a11y'] as const)`).
 - Event: `category_followup` in `runtime.ts`.
 
-### W7 — Healer parses Playwright reports robustly
+### 7. Robust Playwright report parsing
 
-Two specific fixes from the qa-core review:
+Two specifics:
 
 1. URL extraction prefers `playwright.config.ts`'s `use.baseURL` over
-   string-scraping the stack trace.
-   - [`src/agent/heal.ts`](src/agent/heal.ts) (`extractUrlFromReport`, with a
-     top-of-function comment `// W7 fix: prefer config.use.baseURL`).
+   string-scraping the stack trace — configured base URLs are authoritative.
+   - [`src/agent/heal.ts`](src/agent/heal.ts) (`extractUrlFromReport`).
 2. Selector-miss classification uses `result.error.value` (typed:
    `TimeoutError` vs `AssertionError`) so real assertion failures aren't
-   "healed" into invisibility.
+   accidentally "healed" into invisibility.
    - [`src/agent/heal.ts`](src/agent/heal.ts) (`isSelectorMiss`).
 
-### W8 — Shared retry+backoff wrapper
+### 8. Shared retry + backoff wrapper
 
-Every OpenAI call is wrapped in `withRetry` so transient `429` / `502` /
-`503` don't kill long explores. Errors are classified once, in one place.
+Every OpenAI call is wrapped in `withRetry`. Transient `429` / `502` / `503`
+responses don't kill long explores. Retryable errors are classified once, in
+one place — no inline retry logic scattered across call sites.
 
 - Wrapper + classifier: [`src/agent/retry.ts`](src/agent/retry.ts)
   (`withRetry`, `isRetryable`).
 
-### W9 — MCP server streams progress via notifications
+### 9. MCP server with progress notifications
 
 The MCP server emits `notifications/progress` for each meaningful agent
 event (plan started, tool call, scenario complete, critic done) so MCP
@@ -423,60 +423,29 @@ spinner.
 
 ---
 
-## veriplay vs qa-core-agent-openclaw
-
-This project was directly informed by the architecture of
-[qa-core-agent-openclaw](https://github.com/sardar-usman/qa-core-agent-openclaw)
-by Muhammad Usman. The big ideas are the same; the implementation differs
-in specific, measurable ways.
-
-| Dimension | qa-core-agent-openclaw | veriplay |
-|---|---|---|
-| Three-stage pipeline (plan → explore → critic) | yes | yes — same idea |
-| Selector cascade (role/label/testid/css) | yes | yes — same idea (+ `getByPlaceholder`) |
-| Deterministic transcriber | yes | yes — same idea |
-| Per-host memory of seen selectors | yes | yes — atomic writes + decay (W5) |
-| Healer command | yes | yes — with W7 fixes |
-| Language / runtime | Python + Anthropic SDK | TypeScript + OpenAI SDK |
-| LLM output parsing | regex over markdown code blocks | tool calls with zod-validated args (W1) |
-| Test coverage | smoke tests | 97 tests, ≥85% target on `src/agent/*` (W2) |
-| DOM truncation signal | implicit | explicit `truncated` flag (W3) |
-| Pricing | hardcoded in source | `prices.json`, loud warning on unknown IDs (W4) |
-| Category coverage | prompt-only | runtime-enforced follow-up (W6) |
-| Retry on transient errors | inline per call site | shared `withRetry` wrapper (W8) |
-| MCP progress | not present | `notifications/progress` streamed (W9) |
-| Runtime LOC | `runtime.py` is monolithic (~388 lines) | split across `runtime.ts`, `explorer.ts`, `planner.ts`, `critic.ts` |
-| License | MIT | MIT |
-
-The comparison is meant to be useful, not adversarial. qa-core got the
-architecture right. veriplay is what happens when you take that architecture
-and pay down nine specific debts that a code review surfaced.
-
----
-
 ## Project layout
 
 ```
 src/
 ├── agent/
-│   ├── planner.ts      Stage 1 — LLM plans scenarios (W1)
+│   ├── planner.ts      Stage 1 — LLM plans scenarios
 │   ├── explorer.ts     Stage 2 — LLM drives the browser via tool calls
-│   ├── critic.ts       Stage 3 — LLM rates scenarios (W1)
-│   ├── runtime.ts      Orchestrates the three stages, enforces categories (W6)
-│   ├── tools.ts        Browser tools exposed to the LLM (W3)
+│   ├── critic.ts       Stage 3 — LLM rates scenarios
+│   ├── runtime.ts      Orchestrates the three stages, enforces categories
+│   ├── tools.ts        Browser tools exposed to the LLM
 │   ├── selectors.ts    The cascade resolver
 │   ├── transcriber.ts  Pure function: RunReport → Playwright source
-│   ├── heal.ts         Healer (W7)
-│   ├── memory.ts       Per-host memory (W5)
-│   ├── pricing.ts      Cost tracking (W4)
+│   ├── heal.ts         Healer
+│   ├── memory.ts       Per-host memory
+│   ├── pricing.ts      Cost tracking
 │   ├── prices.json     Model price table
-│   ├── retry.ts        Shared retry+backoff (W8)
+│   ├── retry.ts        Shared retry+backoff
 │   └── trace.ts        Shared data types
 ├── cli/
 │   ├── explore.ts      `npm run explore`
 │   └── heal.ts         `npm run heal`
 └── mcp/
-    └── server.ts       MCP server with progress notifications (W9)
+    └── server.ts       MCP server with progress notifications
 
 tests/
 ├── unit/               Vitest unit tests (16 files)
@@ -521,8 +490,7 @@ Model prices live in [`src/agent/prices.json`](src/agent/prices.json):
 
 Units are USD per 1M tokens. Verify pricing at
 <https://openai.com/api/pricing>. Unknown model IDs disable cost tracking
-for the run and emit a loud `console.warn` — they never silently fall back
-to a wrong default (W4).
+for the run and emit a loud `console.warn`.
 
 ---
 
@@ -544,23 +512,6 @@ The integration test (`tests/integration/pipeline.test.ts`) runs the full
 pipeline against a synthetic page served by `page.setContent`, with the
 OpenAI API mocked via `tests/fixtures/openai-mock.ts`. The e2e test runs
 the same pipeline against `https://www.saucedemo.com` with a real API key.
-
----
-
-## Attribution
-
-This project is an independent reimplementation informed by a code review of
-[**qa-core-agent-openclaw**](https://github.com/sardar-usman/qa-core-agent-openclaw)
-by [**Muhammad Usman**](https://github.com/sardar-usman).
-
-The three-stage pipeline architecture, the selector cascade, the per-host
-memory pattern, the deterministic transcriber, and the healer command are
-all concepts adopted from that project — they are the right design. veriplay
-is a TypeScript + OpenAI rewrite that fixes nine specific weaknesses
-identified in the review, documented above and inline in the source as
-`// W1`..`// W9` comments.
-
-If you find this useful, please also star the original.
 
 ---
 
