@@ -19,7 +19,7 @@ describe('parseReport', () => {
   });
 });
 
-describe('extractUrlFromReport (W7 fix vs qa-core regex-only)', () => {
+describe('extractUrlFromReport (W7: prefer config.use.baseURL)', () => {
   it('prefers config.use.baseURL when present', () => {
     const report = {
       config: { projects: [{ name: 'c', use: { baseURL: 'https://from-config.com' } }] },
@@ -39,7 +39,7 @@ describe('extractUrlFromReport (W7 fix vs qa-core regex-only)', () => {
   });
 });
 
-describe('isSelectorMiss (W7 fix vs qa-core keyword search)', () => {
+describe('isSelectorMiss (W7: classify by typed error.value, not keyword search)', () => {
   it('returns true for TimeoutError error.value', () => {
     expect(isSelectorMiss({ error: 'locator timeout', errorValue: 'TimeoutError' })).toBe(true);
   });

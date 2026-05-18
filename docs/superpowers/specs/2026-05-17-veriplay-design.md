@@ -15,11 +15,13 @@ through a tool-use loop powered by OpenAI, has a second model review the trace,
 and emits a Playwright test suite where every line corresponds to an action that
 already executed successfully against the live page.
 
-The architecture follows the three-stage pattern proven by
-[qa-core-agent-openclaw](https://github.com/sardar-usman/qa-core-agent-openclaw),
-but is an independent TypeScript+OpenAI reimplementation that fixes nine
-specific issues identified during a code review of that repo. The fixes are
-the primary deliverable; the architecture is the framing for them.
+A three-stage pipeline (planner → explorer → critic) makes the architecture
+explicit and the failure modes inspectable. Nine specific design decisions
+(structured tool calls, explicit DOM truncation, atomic memory writes,
+runtime-enforced category coverage, typed report parsing, shared retry,
+MCP progress notifications, externalised pricing, TDD-first) make the output
+durable and the runtime debuggable. The decisions are the primary deliverable;
+the architecture is the framing for them.
 
 ---
 
@@ -40,7 +42,7 @@ the primary deliverable; the architecture is the framing for them.
 - Web UI / WebSocket gateway.
 - Generate-from-story workflow (no-browser path).
 - Multi-page POM emission (one Page class per host is sufficient).
-- OpenClaw / Telegram / Slack integration.
+- Telegram / Slack / Discord integration.
 - Eval harness across multiple sites.
 - Pre-commit hook tooling (Husky / lint-staged).
 - Semantic-release / changesets.
@@ -135,21 +137,20 @@ All three converge on the same `explore()` and `heal()` functions in `src/agent/
 | `src/cli/heal.ts` | `npm run heal` entry |
 | `src/mcp/server.ts` | MCP server with progress notifications |
 
-### Key departures from qa-core's structure
+### Module-decomposition rationale
 
-1. `runtime.ts` split into `runtime.ts` (orchestrator) + `explorer.ts` (loop).
-   qa-core's runtime is monolithic at 388 lines.
-2. New `pricing.ts` and `retry.ts` modules for cross-cutting concerns the
-   weakness fixes need.
-3. `tests/unit/` actually has tests.
-4. No `agent/SOUL.md`, `IDENTITY.md`, etc. — those are OpenClaw-specific.
+1. `runtime.ts` is the orchestrator only; the tool-use loop is split out into
+   `explorer.ts` so each module fits in a single screen.
+2. `pricing.ts` and `retry.ts` are dedicated modules for the cross-cutting
+   concerns the design decisions depend on.
+3. `tests/unit/` covers every pure function in `src/agent/`.
 
 ---
 
-## 5. The 9 design decisions (weakness fixes)
+## 5. The 9 design decisions
 
-Each fix maps to a weakness identified in the qa-core code review. The
-README's "9 design decisions" section will link to the relevant file:line.
+Each decision is enumerated below with the source-file reference. The README's
+"Features" section links to the relevant file:line for each.
 
 ### W1 — Structured LLM output via tool calls, not regex parsing
 
@@ -256,7 +257,7 @@ fixture server (no internet dependency, deterministic).
 ### Coverage target
 
 ≥85% on `src/agent/*` excluding HTTP call sites. Anything lower means a
-missing test for a pure function — the qa-core failure mode we're avoiding.
+missing test for a pure function, which we treat as a release-blocker.
 
 ### Tooling
 
@@ -363,23 +364,20 @@ tracking, and the README MUST link to that page so users can keep
 `prices.json` honest themselves.
 
 Unknown model ID → `costUsd: null` in run report + `console.warn`. No silent
-fallback to the wrong price (qa-core's W4 bug).
+fallback to a wrong default price.
 
 ### A note on prompt caching
 
-qa-core relies on Anthropic's explicit `cache_control: { type: 'ephemeral' }`
-markers to cache the system prompt, per-host memory, and plan blocks. That
-API does not exist in OpenAI's SDK. OpenAI provides automatic prompt
-caching: any identical prefix ≥1024 tokens that recurs within ~5 minutes is
-cached and billed at 50% of input rate. No `cache_control` to manage.
+OpenAI provides automatic prompt caching: any identical prefix ≥1024 tokens
+that recurs within ~5 minutes is cached and billed at 50% of input rate.
+There is no `cache_control` field to manage — caching is implicit.
 
 What this means for veriplay:
 - Memory injection still pays off: the agent skips redundant `get_dom`
   calls because it already knows which intents work on this host. That's
   the bigger win.
-- The "90% cheaper repeat runs" headline from qa-core's README will not
-  reproduce as-is. Expect 30-50% cheaper on warm-cache runs, which is still
-  meaningful but should be claimed honestly.
+- Expect 30-50% cheaper on warm-cache runs (claimed honestly — the actual
+  number depends on prompt-prefix stability and the 5-minute TTL).
 - Achieving the cache hit requires keeping the prompt prefix stable. The
   runtime composes system messages as `[frozen_rules, memory_block, plan]`
   in that exact order, with memory and plan appended (not prepended) so the
@@ -415,17 +413,17 @@ The README is the portfolio artifact. Sections:
 
 1. What it does (3 sentences)
 2. The killer feature (verified-by-execution + cascade), one paragraph
-3. Quick start
-4. Commands
-5. How it works (diagram + 3-stage walkthrough)
-6. **The 9 design decisions** — each fix with rationale + `src/file.ts:line`
-   link. This is what makes this README better than qa-core's.
-7. veriplay vs qa-core comparison table (LOC, coverage, what's different)
-8. Project layout
-9. Configuration
-10. Attribution to qa-core-agent-openclaw and Muhammad Usman, with link to
-    the code review that informed the design
-11. License + author
+3. Architecture diagrams (explore flow + heal feedback loop)
+4. Quick start
+5. What you get (real emitted POM + spec snippet)
+6. Commands
+7. How it works (3-stage walkthrough)
+8. Tech stack (one-line per library, linked)
+9. **Features** — each design decision with rationale + `src/file.ts:line` link
+10. Project layout
+11. Configuration
+12. Tests
+13. License + author
 
 ---
 
@@ -434,7 +432,7 @@ The README is the portfolio artifact. Sections:
 - Web UI / WebSocket gateway
 - `generate` command (story → spec, no browser)
 - Multi-page POM emission
-- OpenClaw persona files (`SOUL.md`, etc.)
+- Persona / identity prompt files
 - Eval harness
 - Telegram / Slack / Discord integrations
 - Husky, lint-staged, semantic-release, changesets, commitlint
@@ -448,17 +446,6 @@ None — all clarifications resolved during brainstorming.
 
 ---
 
-## 13. Attribution
+## 13. License
 
-This design is informed by a code review of
-[qa-core-agent-openclaw](https://github.com/sardar-usman/qa-core-agent-openclaw)
-by Muhammad Usman. The three-stage pipeline architecture, the selector
-cascade, the per-host memory pattern, and the deterministic transcriber are
-all concepts adopted from that project — they are the right design.
-
-This project is an independent TypeScript+OpenAI reimplementation that fixes
-nine specific issues identified in the review. The fixes are documented
-inline in the README's "9 design decisions" section.
-
-Original project: MIT-licensed.
-This project: MIT-licensed.
+MIT-licensed. See `LICENSE`.
