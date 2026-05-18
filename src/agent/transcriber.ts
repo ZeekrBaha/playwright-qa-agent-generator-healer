@@ -163,6 +163,13 @@ function emitScenarioTest(s: Scenario, className: string): string {
   const varName = lcFirst(className);
   lines.push(`  test(${JSON.stringify(`[${s.category}] ${s.name}`)}, async ({ page }) => {`);
   lines.push(`    const ${varName} = new ${className}(page);`);
+  // Always navigate to the page URL first. The agent may have called navigate()
+  // before begin_scenario(), so the trace might not include it — but the page
+  // object already knows the URL.
+  const hasExplicitNavigate = s.steps.some((step) => step.kind === 'navigate');
+  if (!hasExplicitNavigate) {
+    lines.push(`    await ${varName}.goto(${varName}.url);`);
+  }
   for (const step of s.steps) {
     lines.push(`    ${emitStep(step, varName)}`);
   }
@@ -192,7 +199,7 @@ function emitStep(step: TraceStep, pageVar: string): string {
         case 'toContainText':
           return `await expect(${pageVar}.${intentToField(a.target.intent)}).toContainText(${JSON.stringify(a.text)});`;
         case 'toHaveURL':
-          return `await expect(page).toHaveURL(${JSON.stringify(new RegExp(a.pattern).source)});`;
+          return `await expect(page).toHaveURL(new RegExp(${JSON.stringify(a.pattern)}));`;
         case 'toHaveCount':
           return `await expect(${pageVar}.${intentToField(a.target.intent)}).toHaveCount(${a.count});`;
       }
@@ -262,7 +269,7 @@ function emitStepInline(step: TraceStep): string {
         case 'toContainText':
           return `await expect(${emitLocatorCall(a.target.level, a.target.arg)}).toContainText(${JSON.stringify(a.text)});`;
         case 'toHaveURL':
-          return `await expect(page).toHaveURL(${JSON.stringify(new RegExp(a.pattern).source)});`;
+          return `await expect(page).toHaveURL(new RegExp(${JSON.stringify(a.pattern)}));`;
         case 'toHaveCount':
           return `await expect(${emitLocatorCall(a.target.level, a.target.arg)}).toHaveCount(${a.count});`;
       }

@@ -88,6 +88,10 @@ export function isSelectorMiss(input: { error: string; errorValue: string }): bo
   if (e.includes('element not found')) return true;
   if (e.includes('expected to be visible')) return true;
   if (e.includes('expected count')) return true;
+  // Common Playwright shapes when a locator waits and times out — these are
+  // overwhelmingly selector misses (the locator never resolved).
+  if (e.includes('test timeout') && /(locator\.|page\.get|waiting for)/i.test(input.error)) return true;
+  if (e.includes('locator.click') || e.includes('locator.fill') || e.includes('locator.press')) return true;
   return false;
 }
 
@@ -144,7 +148,9 @@ export async function proposeNewSelector(opts: {
   const model = opts.model ?? process.env.OPENAI_MODEL_HEAL ?? 'gpt-4o-mini';
 
   const snapshot = await opts.page.evaluate(() => {
-    const pick = (el: Element): { tag: string; role?: string; label?: string; testid?: string } => {
+    // Function declaration, not const arrow — tsx/esbuild wraps arrow consts
+    // in __name() for stack traces, which breaks in the browser context.
+    function pick(el: Element): { tag: string; role?: string; label?: string; testid?: string } {
       const r = el as HTMLElement;
       const text = (r.getAttribute('aria-label') ?? r.getAttribute('placeholder') ?? r.getAttribute('name') ?? (r.textContent ?? '').trim().slice(0, 60)) || undefined;
       const out: { tag: string; role?: string; label?: string; testid?: string } = { tag: r.tagName.toLowerCase() };
@@ -154,7 +160,7 @@ export async function proposeNewSelector(opts: {
       const testid = r.getAttribute('data-testid');
       if (testid) out.testid = testid;
       return out;
-    };
+    }
     return {
       inputs: Array.from(document.querySelectorAll('input, textarea, select')).slice(0, 40).map(pick),
       buttons: Array.from(document.querySelectorAll('button, [role="button"]')).slice(0, 40).map(pick),
@@ -351,6 +357,7 @@ export async function heal(opts: {
       opts.onEvent?.({ type: 'healing', selector: call.raw, url: failure.url });
 
       const ctx = await browser.newContext();
+      await ctx.addInitScript("if(typeof window.__name==='undefined')window.__name=function(f){return f};");
       const page = await ctx.newPage();
       try {
         await page.goto(failure.url, { waitUntil: 'domcontentloaded' });

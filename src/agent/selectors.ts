@@ -83,6 +83,18 @@ export async function resolve(page: Page, spec: ResolveSpec): Promise<ResolvedLo
     };
   }
 
+  // Try placeholder (covers inputs with placeholder but no <label for=...>).
+  // Recorded as 'label' level so the transcriber emits getByPlaceholder via the
+  // same call site (Playwright treats it as a label-style accessible selector).
+  const byPlaceholder = page.getByPlaceholder(spec.intent);
+  if (await exists(byPlaceholder)) {
+    return {
+      locator: byPlaceholder.first(),
+      level: 'label',
+      arg: spec.intent,
+    };
+  }
+
   // Try testid
   if (spec.testid) {
     const byTestId = page.getByTestId(spec.testid);

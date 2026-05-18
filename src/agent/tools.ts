@@ -235,9 +235,11 @@ async function resolveAndRecord(
 
 async function summarizeDom(page: Page): Promise<unknown> {
   return await page.evaluate(() => {
+    // tsx/esbuild wraps `const pick = (...) => {...}` in `__name(...)` for stack traces,
+    // which breaks in the browser context. Function declarations are not wrapped.
     const CAPS = { headings: 10, inputs: 60, buttons: 60, links: 30 };
 
-    const pick = (el: Element) => {
+    function pick(el: Element) {
       const r = el as HTMLElement;
       const label =
         r.getAttribute('aria-label') ||
@@ -252,7 +254,7 @@ async function summarizeDom(page: Page): Promise<unknown> {
         type: (r as HTMLInputElement).type || undefined,
         visible: !!(r as HTMLElement).offsetParent,
       };
-    };
+    }
 
     const allHeadings = Array.from(document.querySelectorAll('h1, h2, h3'));
     const allInputs = Array.from(

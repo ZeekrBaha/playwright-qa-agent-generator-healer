@@ -162,6 +162,9 @@ export async function explore(
   try {
     browser = await chromium.launch({ headless: true });
     bctx = await browser.newContext();
+    // tsx/esbuild compiles page.evaluate bodies with __name() wrappers for stack
+    // traces. Browsers don't have __name, so polyfill it before any script runs.
+    await bctx.addInitScript("if(typeof window.__name==='undefined')window.__name=function(f){return f};");
     const page: Page = await bctx.newPage();
 
     const ctx = createContext(page, maxSteps);
@@ -202,8 +205,11 @@ export async function explore(
     for (const required of ['negative', 'a11y'] as const) {
       if (!scenarios.some((s) => s.category === required)) {
         opts.onEvent?.({ type: 'category_followup', missing: required });
-        const remainingSteps = Math.max(10, maxSteps - steps);
-        const ctx2 = createContext(page, remainingSteps);
+        // Give the follow-up its own meaningful budget: at least 20 steps,
+        // or 1/3 of the original budget, whichever is greater. Clamping at
+        // (maxSteps - steps) starved the follow-up after busy initial loops.
+        const followupBudget = Math.max(20, Math.floor(maxSteps / 3));
+        const ctx2 = createContext(page, followupBudget);
         try {
           const followupCost = await runExplorerLoop({
             openai: opts.openai,
@@ -323,10 +329,13 @@ async function snapshotPage(url: string): Promise<PageSnapshot> {
   const browser = await chromium.launch({ headless: true });
   try {
     const ctx = await browser.newContext();
+    await ctx.addInitScript("if(typeof window.__name==='undefined')window.__name=function(f){return f};");
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     return await page.evaluate(() => {
-      const pick = (el: Element) => {
+      // Function declaration (not const arrow) — tsx/esbuild wraps arrow consts
+      // in __name() for stack traces, which breaks in the browser context.
+      function pick(el: Element) {
         const r = el as HTMLElement;
         const label =
           r.getAttribute('aria-label') ??
@@ -338,7 +347,7 @@ async function snapshotPage(url: string): Promise<PageSnapshot> {
           role: r.getAttribute('role') ?? undefined,
           label: label || undefined,
         };
-      };
+      }
       return {
         title: document.title,
         url: location.href,
