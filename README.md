@@ -172,7 +172,9 @@ npx playwright test
 ## What you get
 
 After `npm run explore -- https://www.saucedemo.com`, veriplay drops a
-self-contained Playwright project. The actual emitted files from a real run:
+self-contained Playwright project. The actual emitted files from a real run
+(checked in at [`examples/saucedemo/`](examples/saucedemo/) so you can browse
+the full output without running the agent):
 
 **`pages/SaucedemoComPage.ts`** — Page Object Model with cascade-chosen selectors:
 
